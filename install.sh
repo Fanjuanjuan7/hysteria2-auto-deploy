@@ -85,7 +85,12 @@ deploy_hysteria2() {
     echo "🚀 开始部署 Hysteria2 + Nginx..."
 
     # 安装依赖
-    apt update && apt install -y curl wget unzip openssl jq nginx
+    apt update && apt install -y curl wget unzip openssl jq nginx ntp
+
+    # 同步服务器时间
+    timedatectl set-ntp true
+    sleep 2
+    echo "⏰ 当前服务器时间：$(date)"
 
     # 下载 Hysteria2
     HYS_URL=$(curl -s https://api.github.com/repos/HyNetwork/hysteria/releases/latest | jq -r '.assets[] | select(.name | endswith("linux-amd64")) | .browser_download_url')
@@ -158,6 +163,7 @@ EOF
 
     # 放行本地防火墙
     for port in "${PORTS[@]}"; do ufw allow "$port/udp"; done
+    echo "✅ 防火墙已放行 UDP 端口：${PORTS[@]}"
 
     # 配置 Nginx 反向代理
     cat > /etc/nginx/sites-available/hysteria2 <<EOF
@@ -169,6 +175,9 @@ server {
     ssl_certificate_key /etc/hysteria/private.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
 
     location / {
         proxy_pass https://127.0.0.1:${PORTS[0]};
